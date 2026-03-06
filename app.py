@@ -51,4 +51,8 @@ if uploaded_file is not None:
 
             plotted = r.plot()
 
-            st.image(plotted, caption="Detection Result", use_container_width=True)
+            # st.image(plotted, caption="Detection Result", use_container_width=True)
+            st.image(plotted, caption="Detection Result")
+
+
+
