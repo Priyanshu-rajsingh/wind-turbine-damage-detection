@@ -8,3 +8,4 @@ torchvision==0.18.1
 plotly>=5.18
 pandas>=2.0
 matplotlib>=3.8
+reportlab
