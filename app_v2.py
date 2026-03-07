@@ -2,17 +2,18 @@ import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 import pandas as pd
+import matplotlib.pyplot as plt
+import time
 
 st.set_page_config(
     page_title="Wind Turbine Damage Detection",
+    page_icon="🌬️",
     layout="wide"
 )
 
 # ---------- HEADER ----------
-st.markdown("""
-# 🌬️ Wind Turbine Blade Damage Detection
-AI powered structural inspection system
-""")
+st.title("🌬️ Wind Turbine Blade Damage Detection")
+st.caption("AI powered structural inspection system")
 
 st.markdown("---")
 
@@ -35,31 +36,32 @@ if uploaded_file:
 
     col1, col2 = st.columns(2)
 
-    # LEFT SIDE (INPUT IMAGE)
+    # LEFT SIDE
     with col1:
 
-        st.subheader("Uploaded Blade Image")
+        st.subheader("Uploaded Image")
         st.image(image)
 
-        analyze = st.button("Run Damage Analysis")
+        analyze = st.button("🔍 Analyze Damage")
 
-    # RIGHT SIDE (RESULTS)
+    # RIGHT SIDE
     with col2:
 
         if analyze:
 
-            with st.spinner("Analyzing blade structure..."):
+            with st.spinner("Running AI structural inspection..."):
+
+                time.sleep(1)
 
                 results = model.predict(image)
-
                 r = results[0]
 
-                st.subheader("Damage Detection Result")
+                st.subheader("Detection Result")
 
                 plotted = r.plot()
                 st.image(plotted)
 
-                st.markdown("### Structural Report")
+                st.markdown("## Structural Report")
 
                 if len(r.boxes) == 0:
 
@@ -75,6 +77,7 @@ if uploaded_file:
 
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
+
                         damage = names[cls]
 
                         damages.append({
@@ -84,13 +87,57 @@ if uploaded_file:
 
                     df = pd.DataFrame(damages)
 
-                    st.dataframe(df)
+                    # ---------- REPORT TABLE ----------
+                    st.dataframe(df, use_container_width=True)
 
+                    # ---------- CONFIDENCE BARS ----------
                     st.markdown("### Confidence Levels")
 
                     for d in damages:
                         st.progress(d["Confidence"])
                         st.write(f'{d["Damage Type"]} ({d["Confidence"]})')
 
+                    # ---------- PIE CHART ----------
+                    st.markdown("### Damage Distribution")
+
+                    damage_counts = df["Damage Type"].value_counts()
+
+                    fig1, ax1 = plt.subplots()
+                    ax1.pie(
+                        damage_counts,
+                        labels=damage_counts.index,
+                        autopct='%1.1f%%',
+                        startangle=90
+                    )
+                    ax1.axis("equal")
+
+                    st.pyplot(fig1)
+
+                    # ---------- CONFIDENCE CHART ----------
+                    st.markdown("### Confidence Chart")
+
+                    fig2, ax2 = plt.subplots()
+
+                    ax2.bar(
+                        df["Damage Type"],
+                        df["Confidence"]
+                    )
+
+                    ax2.set_xlabel("Damage Type")
+                    ax2.set_ylabel("Confidence")
+                    ax2.set_title("Detection Confidence")
+
+                    st.pyplot(fig2)
+
+                    # ---------- DOWNLOAD REPORT ----------
+                    csv = df.to_csv(index=False).encode("utf-8")
+
+                    st.download_button(
+                        label="📥 Download Inspection Report",
+                        data=csv,
+                        file_name="turbine_damage_report.csv",
+                        mime="text/csv"
+                    )
+
 st.markdown("---")
-st.caption("AI based turbine blade inspection | YOLOv8 segmentation")
+st.caption("YOLOv8 Segmentation | Streamlit AI Inspection System")
