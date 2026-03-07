@@ -2,18 +2,41 @@ import streamlit as st
 from ultralytics import YOLO
 from PIL import Image
 import pandas as pd
-import matplotlib.pyplot as plt
-import time
+import plotly.express as px
+import plotly.graph_objects as go
+import numpy as np
 
+# ---------- PAGE CONFIG ----------
 st.set_page_config(
-    page_title="Wind Turbine Damage Detection",
+    page_title="Wind Turbine AI Inspection",
     page_icon="🌬️",
     layout="wide"
 )
 
+# ---------- DARK STYLE ----------
+st.markdown("""
+<style>
+body {
+    background-color:#0E1117;
+}
+.report-card {
+    background-color:#1f2937;
+    padding:20px;
+    border-radius:10px;
+    margin-bottom:10px;
+}
+.metric-card {
+    background-color:#1f2937;
+    padding:15px;
+    border-radius:10px;
+    text-align:center;
+}
+</style>
+""", unsafe_allow_html=True)
+
 # ---------- HEADER ----------
-st.title("🌬️ Wind Turbine Blade Damage Detection")
-st.caption("AI powered structural inspection system")
+st.title("🌬️ Wind Turbine Blade AI Inspection")
+st.caption("Deep Learning Structural Damage Detection (YOLOv8)")
 
 st.markdown("---")
 
@@ -26,32 +49,30 @@ model = load_model()
 
 # ---------- FILE UPLOAD ----------
 uploaded_file = st.file_uploader(
-    "Upload Wind Turbine Blade Image",
-    type=["jpg","png","jpeg"]
+    "Upload Turbine Blade Image",
+    type=["jpg","jpeg","png"]
 )
 
 if uploaded_file:
 
     image = Image.open(uploaded_file)
 
-    col1, col2 = st.columns(2)
+    col1, col2 = st.columns([1,1])
 
-    # LEFT SIDE
+    # ---------- LEFT PANEL ----------
     with col1:
 
-        st.subheader("Uploaded Image")
+        st.subheader("Input Image")
         st.image(image)
 
-        analyze = st.button("🔍 Analyze Damage")
+        analyze = st.button("Run AI Inspection")
 
-    # RIGHT SIDE
+    # ---------- RIGHT PANEL ----------
     with col2:
 
         if analyze:
 
-            with st.spinner("Running AI structural inspection..."):
-
-                time.sleep(1)
+            with st.spinner("Running structural analysis..."):
 
                 results = model.predict(image)
                 r = results[0]
@@ -61,23 +82,19 @@ if uploaded_file:
                 plotted = r.plot()
                 st.image(plotted)
 
-                st.markdown("## Structural Report")
-
                 if len(r.boxes) == 0:
 
-                    st.success("✅ No structural damage detected")
+                    st.success("No damage detected")
 
                 else:
 
                     names = model.names
-
                     damages = []
 
                     for box in r.boxes:
 
                         cls = int(box.cls[0])
                         conf = float(box.conf[0])
-
                         damage = names[cls]
 
                         damages.append({
@@ -87,57 +104,79 @@ if uploaded_file:
 
                     df = pd.DataFrame(damages)
 
-                    # ---------- REPORT TABLE ----------
+                    # ---------- TURBINE HEALTH SCORE ----------
+                    avg_conf = df["Confidence"].mean()
+
+                    health_score = max(0, 100 - (avg_conf*100))
+
+                    st.markdown("### Turbine Health Score")
+
+                    fig = go.Figure(go.Indicator(
+                        mode="gauge+number",
+                        value=health_score,
+                        title={'text': "Health Index"},
+                        gauge={
+                            'axis': {'range': [0,100]},
+                            'bar': {'color': "green"},
+                            'steps': [
+                                {'range': [0,40], 'color': "red"},
+                                {'range': [40,70], 'color': "orange"},
+                                {'range': [70,100], 'color': "green"}
+                            ],
+                        }
+                    ))
+
+                    st.plotly_chart(fig, use_container_width=True)
+
+                    # ---------- SEVERITY ----------
+                    st.markdown("### Damage Severity")
+
+                    severity = "Low"
+
+                    if avg_conf > 0.7:
+                        severity = "High"
+                    elif avg_conf > 0.4:
+                        severity = "Medium"
+
+                    st.info(f"Severity Level: **{severity}**")
+
+                    # ---------- DAMAGE TABLE ----------
+                    st.markdown("### Damage Report")
+
                     st.dataframe(df, use_container_width=True)
-
-                    # ---------- CONFIDENCE BARS ----------
-                    st.markdown("### Confidence Levels")
-
-                    for d in damages:
-                        st.progress(d["Confidence"])
-                        st.write(f'{d["Damage Type"]} ({d["Confidence"]})')
 
                     # ---------- PIE CHART ----------
                     st.markdown("### Damage Distribution")
 
-                    damage_counts = df["Damage Type"].value_counts()
-
-                    fig1, ax1 = plt.subplots()
-                    ax1.pie(
-                        damage_counts,
-                        labels=damage_counts.index,
-                        autopct='%1.1f%%',
-                        startangle=90
-                    )
-                    ax1.axis("equal")
-
-                    st.pyplot(fig1)
-
-                    # ---------- CONFIDENCE CHART ----------
-                    st.markdown("### Confidence Chart")
-
-                    fig2, ax2 = plt.subplots()
-
-                    ax2.bar(
-                        df["Damage Type"],
-                        df["Confidence"]
+                    fig2 = px.pie(
+                        df,
+                        names="Damage Type",
+                        title="Damage Categories"
                     )
 
-                    ax2.set_xlabel("Damage Type")
-                    ax2.set_ylabel("Confidence")
-                    ax2.set_title("Detection Confidence")
+                    st.plotly_chart(fig2, use_container_width=True)
 
-                    st.pyplot(fig2)
+                    # ---------- CONFIDENCE BAR ----------
+                    st.markdown("### Confidence Levels")
+
+                    fig3 = px.bar(
+                        df,
+                        x="Damage Type",
+                        y="Confidence",
+                        color="Damage Type"
+                    )
+
+                    st.plotly_chart(fig3, use_container_width=True)
 
                     # ---------- DOWNLOAD REPORT ----------
-                    csv = df.to_csv(index=False).encode("utf-8")
+                    csv = df.to_csv(index=False).encode()
 
                     st.download_button(
-                        label="📥 Download Inspection Report",
-                        data=csv,
-                        file_name="turbine_damage_report.csv",
-                        mime="text/csv"
+                        "Download Inspection Report",
+                        csv,
+                        "turbine_report.csv",
+                        "text/csv"
                     )
 
 st.markdown("---")
-st.caption("YOLOv8 Segmentation | Streamlit AI Inspection System")
+st.caption("YOLOv8 Segmentation | Streamlit AI Monitoring Dashboard")
