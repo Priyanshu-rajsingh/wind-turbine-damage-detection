@@ -4,179 +4,182 @@ from PIL import Image
 import pandas as pd
 import plotly.express as px
 import plotly.graph_objects as go
-import numpy as np
+from datetime import datetime
 
-# ---------- PAGE CONFIG ----------
+# -----------------------------------
+# PAGE CONFIG
+# -----------------------------------
+
 st.set_page_config(
-    page_title="Wind Turbine AI Inspection",
-    page_icon="🌬️",
+    page_title="Wind Turbine Damage Detection",
     layout="wide"
 )
 
-# ---------- DARK STYLE ----------
-st.markdown("""
-<style>
-body {
-    background-color:#0E1117;
-}
-.report-card {
-    background-color:#1f2937;
-    padding:20px;
-    border-radius:10px;
-    margin-bottom:10px;
-}
-.metric-card {
-    background-color:#1f2937;
-    padding:15px;
-    border-radius:10px;
-    text-align:center;
-}
-</style>
-""", unsafe_allow_html=True)
+# -----------------------------------
+# TITLE
+# -----------------------------------
 
-# ---------- HEADER ----------
-st.title("🌬️ Wind Turbine Blade AI Inspection")
-st.caption("Deep Learning Structural Damage Detection (YOLOv8)")
+st.title("🌬️ Wind Turbine Blade AI Inspection System")
+st.write("Upload a turbine blade image to analyze structural damage using AI.")
 
-st.markdown("---")
+# -----------------------------------
+# LOAD MODEL
+# -----------------------------------
 
-# ---------- LOAD MODEL ----------
 @st.cache_resource
 def load_model():
     return YOLO("runs/segment/train/weights/best.pt")
 
 model = load_model()
 
-# ---------- FILE UPLOAD ----------
+# -----------------------------------
+# IMAGE UPLOAD
+# -----------------------------------
+
 uploaded_file = st.file_uploader(
-    "Upload Turbine Blade Image",
-    type=["jpg","jpeg","png"]
+    "Upload Blade Image",
+    type=["jpg", "jpeg", "png"]
 )
 
-if uploaded_file:
+# -----------------------------------
+# IF IMAGE PROVIDED
+# -----------------------------------
+
+if uploaded_file is not None:
 
     image = Image.open(uploaded_file)
 
-    col1, col2 = st.columns([1,1])
+    col1, col2 = st.columns(2)
 
-    # ---------- LEFT PANEL ----------
     with col1:
+        st.image(image, caption="Uploaded Image")
 
-        st.subheader("Input Image")
-        st.image(image)
+    if st.button("🔍 Analyze Damage"):
 
-        analyze = st.button("Run AI Inspection")
+        with st.spinner("Running AI Inspection..."):
 
-    # ---------- RIGHT PANEL ----------
-    with col2:
+            results = model.predict(image)
 
-        if analyze:
+            r = results[0]
 
-            with st.spinner("Running structural analysis..."):
+            plotted = r.plot()
 
-                results = model.predict(image)
-                r = results[0]
+            with col2:
+                st.image(plotted, caption="Detection Result")
 
-                st.subheader("Detection Result")
+            st.subheader("📊 Structural Inspection Report")
 
-                plotted = r.plot()
-                st.image(plotted)
+            names = model.names
 
-                if len(r.boxes) == 0:
+            report_data = []
 
-                    st.success("No damage detected")
+            # -------------------------
+            # NO DAMAGE
+            # -------------------------
 
-                else:
+            if len(r.boxes) == 0:
 
-                    names = model.names
-                    damages = []
+                st.success("No structural damage detected.")
 
-                    for box in r.boxes:
+                health_score = 100
 
-                        cls = int(box.cls[0])
-                        conf = float(box.conf[0])
-                        damage = names[cls]
+            else:
 
-                        damages.append({
-                            "Damage Type": damage,
-                            "Confidence": round(conf,2)
-                        })
+                health_score = max(0, 100 - (len(r.boxes) * 15))
 
-                    df = pd.DataFrame(damages)
+                for i, box in enumerate(r.boxes):
 
-                    # ---------- TURBINE HEALTH SCORE ----------
-                    avg_conf = df["Confidence"].mean()
+                    cls = int(box.cls[0])
+                    conf = float(box.conf[0])
 
-                    health_score = max(0, 100 - (avg_conf*100))
+                    damage = names[cls]
 
-                    st.markdown("### Turbine Health Score")
-
-                    fig = go.Figure(go.Indicator(
-                        mode="gauge+number",
-                        value=health_score,
-                        title={'text': "Health Index"},
-                        gauge={
-                            'axis': {'range': [0,100]},
-                            'bar': {'color': "green"},
-                            'steps': [
-                                {'range': [0,40], 'color': "red"},
-                                {'range': [40,70], 'color': "orange"},
-                                {'range': [70,100], 'color': "green"}
-                            ],
-                        }
-                    ))
-
-                    st.plotly_chart(fig, use_container_width=True)
-
-                    # ---------- SEVERITY ----------
-                    st.markdown("### Damage Severity")
-
-                    severity = "Low"
-
-                    if avg_conf > 0.7:
+                    if conf > 0.75:
                         severity = "High"
-                    elif avg_conf > 0.4:
+                    elif conf > 0.45:
                         severity = "Medium"
+                    else:
+                        severity = "Low"
 
-                    st.info(f"Severity Level: **{severity}**")
+                    report_data.append({
+                        "Image": uploaded_file.name,
+                        "Detection ID": i+1,
+                        "Damage Type": damage,
+                        "Confidence": round(conf,2),
+                        "Severity": severity,
+                        "Health Score": health_score,
+                        "Timestamp": datetime.now()
+                    })
 
-                    # ---------- DAMAGE TABLE ----------
-                    st.markdown("### Damage Report")
+                df = pd.DataFrame(report_data)
 
-                    st.dataframe(df, use_container_width=True)
+                st.dataframe(df)
 
-                    # ---------- PIE CHART ----------
-                    st.markdown("### Damage Distribution")
+                # -------------------------
+                # DAMAGE PIE CHART
+                # -------------------------
 
-                    fig2 = px.pie(
-                        df,
-                        names="Damage Type",
-                        title="Damage Categories"
-                    )
+                damage_counts = df["Damage Type"].value_counts().reset_index()
+                damage_counts.columns = ["Damage Type","Count"]
 
-                    st.plotly_chart(fig2, use_container_width=True)
+                fig1 = px.pie(
+                    damage_counts,
+                    values="Count",
+                    names="Damage Type",
+                    title="Damage Distribution"
+                )
 
-                    # ---------- CONFIDENCE BAR ----------
-                    st.markdown("### Confidence Levels")
+                st.plotly_chart(fig1, use_container_width=True)
 
-                    fig3 = px.bar(
-                        df,
-                        x="Damage Type",
-                        y="Confidence",
-                        color="Damage Type"
-                    )
+                # -------------------------
+                # CONFIDENCE BAR CHART
+                # -------------------------
 
-                    st.plotly_chart(fig3, use_container_width=True)
+                fig2 = px.bar(
+                    df,
+                    x="Damage Type",
+                    y="Confidence",
+                    color="Severity",
+                    title="Detection Confidence Levels"
+                )
 
-                    # ---------- DOWNLOAD REPORT ----------
-                    csv = df.to_csv(index=False).encode()
+                st.plotly_chart(fig2, use_container_width=True)
 
-                    st.download_button(
-                        "Download Inspection Report",
-                        csv,
-                        "turbine_report.csv",
-                        "text/csv"
-                    )
+            # --------------------------------
+            # TURBINE HEALTH GAUGE
+            # --------------------------------
+
+            fig3 = go.Figure(go.Indicator(
+                mode="gauge+number",
+                value=health_score,
+                title={'text': "Turbine Health Score"},
+                gauge={
+                    'axis': {'range': [0,100]},
+                    'bar': {'color': "green"},
+                    'steps': [
+                        {'range':[0,40],'color':"red"},
+                        {'range':[40,70],'color':"orange"},
+                        {'range':[70,100],'color':"lightgreen"}
+                    ],
+                }
+            ))
+
+            st.plotly_chart(fig3, use_container_width=True)
+
+            # --------------------------------
+            # DOWNLOAD REPORT
+            # --------------------------------
+
+            if len(report_data) > 0:
+
+                csv = df.to_csv(index=False).encode("utf-8")
+
+                st.download_button(
+                    label="📥 Download Inspection Report",
+                    data=csv,
+                    file_name="turbine_damage_report.csv",
+                    mime="text/csv"
+                )
 
 st.markdown("---")
 st.caption("YOLOv8 Segmentation | Streamlit AI Monitoring Dashboard")
