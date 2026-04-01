@@ -1,8 +1,9 @@
-streamlit==1.36.0
-ultralytics==8.2.103
-opencv-python-headless
-numpy
+streamlit==1.31.1
+ultralytics==8.0.196
+opencv-python-headless==4.8.1.78
+numpy==1.24.4
 pillow
-plotly
 pandas
 matplotlib
+plotly
+reportlab
