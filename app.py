@@ -34,7 +34,7 @@ st.write("Upload turbine blade images to automatically detect structural damage 
 
 @st.cache_resource
 def load_model():
-    return YOLO("runs/segment/train/weights/best.pt")
+    return YOLO("best.pt")
 
 model = load_model()
 
