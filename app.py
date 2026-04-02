@@ -104,7 +104,9 @@ if uploaded_files:
 
             with st.spinner("Running AI inspection..."):
 
-                results = model.predict(image)
+                # results = model.predict(image)
+                img = np.array(image.resize((640, 640)))
+                results = model.predict(source=img, conf=0.25)
 
                 r = results[0]
 
