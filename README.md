@@ -91,3 +91,7 @@ The model was trained on a labeled dataset of turbine blade images with segmenta
 
 **Priyanshu Raj Singh**  
 Computer Science Engineering, Vardhaman College of Engineering
+  
+
+**Mallu Sri Thanvi Reddy**  
+Computer Science Engineering, Vardhaman College of Engineering
